@@ -1,6 +1,6 @@
 from rest_framework import generics, status
-from .models import Product
-from inventory.serializers import ProductSerializer
+from .models import Product, Category
+from inventory.serializers import ProductSerializer, CategorySerializer
 
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -8,28 +8,34 @@ from rest_framework.response import Response
 
 # Create your views here.
 
-# Standard view to Create and List products
-class ProductListCreateView(generics.ListCreateAPIView):
+# This endpoint only allows POST requests to create a new item
+class ProductCreateView(generics.CreateAPIView):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
 
+# This view handles the GET request to list everything in the database
+class ProductListView(generics.ListAPIView):
+    queryset = Product.objects.all()
+    # This tells Django HOW to format the data
+    serializer_class = ProductSerializer
 
-# Custom view to handle Stock Adjustments
-class StockUpdateView(APIView):
-    def post(self, request, pk):
-        # 1. Find the product by the ID (pk) provided in the URL
-        try:
-            product = Product.objects.get(pk=pk)
-        except Product.DoesNotExist:
-            return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
+class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Product.objects.all()
+    serializer_class = ProductSerializer
 
-        # 2. Get the 'amount' from the Postman request body
-        amount = request.data.get('amount', 0)
+# This view handles both GET (list) and POST (create)
+class CategoryListCreateView(generics.ListCreateAPIView):
+    queryset = Category.objects.all()
+    serializer_class = CategorySerializer
 
-        # 3. Use our model method to update stock
-        success = product.update_stock(int(amount))
+class CategoryDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Category.objects.all()
+    serializer_class = CategorySerializer
 
-        if success:
-            return Response({"message": "Stock updated", "new_stock": product.stock})
-        else:
-            return Response({"error": "Insufficient stock"}, status=status.HTTP_400_BAD_REQUEST)
+
+class StockAlertView(generics.ListAPIView):
+    serializer_class = ProductSerializer
+
+    def get_queryset(self):
+        # .order_by('stock') puts 0 at the top, then 1, 2, etc.
+        return Product.objects.all().order_by('stock')
