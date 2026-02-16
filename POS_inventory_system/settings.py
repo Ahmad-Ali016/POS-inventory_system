@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'accounts',
     'inventory',
+    'sales',
 ]
 
 MIDDLEWARE = [
@@ -122,3 +123,4 @@ USE_TZ = True
 STATIC_URL = 'static/'
 
 AUTH_USER_MODEL = 'accounts.User'
+
