@@ -4,7 +4,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 
 from accounts.models import User
-from inventory.models import Product
+from inventory.models import Product, Batch
 from .models import Customer, Sale
 from .serializers import CustomerRegisterSerializer, SaleReadSerializer
 
@@ -67,42 +67,71 @@ class ProcessSaleView(APIView):
                 customer = Customer.objects.get(id=customer_id)
                 staff = User.objects.get(id=staff_id)  # Now specifically checked
 
-                # 2. Stock
-                if not product.update_stock(-qty_to_buy):
+                # 2. Check total availability using the @property we created
+                if product.total_stock < qty_to_buy:
                     return Response(
-                        {"error": f"Insufficient stock. Only {product.stock} available."},
+                        {"error": f"Insufficient stock. Only {product.total_stock} available."},
                         status=status.HTTP_400_BAD_REQUEST
                     )
 
-                # 3. Calculate and Create
-                total = product.price * qty_to_buy
+                # 3. FIFO LOGIC: Deduct from Batches (Oldest First)
+                # We filter for batches with quantity > 0 and order by creation date
+                available_batches = Batch.objects.filter(
+                    product=product,
+                    quantity__gt=0
+                ).order_by('created_at')
+
+                remaining_to_deduct = qty_to_buy
+
+                for batch in available_batches:
+                    if remaining_to_deduct <= 0:
+                        break
+
+                    if batch.quantity <= remaining_to_deduct:
+                        # Use up this entire batch
+                        remaining_to_deduct -= batch.quantity
+                        batch.quantity = 0
+                        batch.save()
+                    else:
+                        # Take only what is needed from this batch
+                        batch.quantity -= remaining_to_deduct
+                        remaining_to_deduct = 0
+                        batch.save()
+
+                # 4. Create Sale Record
+                total_amount = product.price * qty_to_buy
                 sale = Sale.objects.create(
                     customer=customer,
                     staff_member=staff,
                     product=product,
                     quantity_sold=qty_to_buy,
-                    total_price=total
+                    total_price=total_amount
                 )
 
                 return Response({
                     "message": "Sale completed successfully!",
                     "transaction_id": sale.id,
-                    "product/item": product.name,
-                    "unit_price": float(product.price),
-                    "number_of_units": qty_to_buy,
-                    "total_price": float(total),
-                    "remaining_stock": product.stock
+                    "customer": customer.username,
+                    "staff_handler": staff.username,
+                    "product": product.name,
+                    "quantity": qty_to_buy,
+                    "total_price": float(total_amount),
+                    "current_stock_left": product.total_stock
                 }, status=status.HTTP_201_CREATED)
 
-        except User.DoesNotExist:
-            return Response({"error": "Staff member not found"}, status=status.HTTP_404_NOT_FOUND)
+
+
         except Product.DoesNotExist:
+
             return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
+
         except Customer.DoesNotExist:
             return Response({"error": "Customer not found"}, status=status.HTTP_404_NOT_FOUND)
+        except User.DoesNotExist:
+            return Response({"error": "Staff member not found"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 class SaleListView(generics.ListAPIView):
-    queryset = Sale.objects.all().order_by('-sale_date') # Newest sales first
+    queryset = Sale.objects.all().order_by('-sale_date')  # Newest sales first
     serializer_class = SaleReadSerializer

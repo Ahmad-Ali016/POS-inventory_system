@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Category, Product
+from .models import Category, Product, Batch
 
 from django.db import models
 from sales.models import Customer
@@ -16,21 +16,21 @@ class CategoryAdmin(admin.ModelAdmin):
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    # This allows you to see the Category and Stock levels at a glance
-    # Using  actual field names: name, category, price, stock
-    list_display = ('id', 'name', 'category', 'price', 'stock')
+    # list_display references fields or methods
+    list_display = ('id', 'name', 'category', 'price', 'get_total_stock')
     list_filter = ('category',)
     search_fields = ('name',)
-    list_editable = ('price', 'stock')  # Allows quick updates from the list
 
+    # Note the comma after 'price' - this is crucial!
+    list_editable = ('price',)
 
-class Sale(models.Model):
-    customer = models.ForeignKey(Customer, on_delete=models.CASCADE)
-    staff_member = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
-    item = models.ForeignKey(Product, on_delete=models.CASCADE)
-    quantity_sold = models.PositiveIntegerField()
-    total_price = models.DecimalField(max_digits=10, decimal_places=2)
-    sale_date = models.DateTimeField(auto_now_add=True)
+    # Example of how to define get_total_stock if it's not in models.py
+    def get_total_stock(self, obj):
+        # Logic to sum up batches or return a stock field
+        return obj.stock
+    get_total_stock.short_description = 'Stock Level'
 
-    def __str__(self):
-        return f"Sale: {self.item.name} to {self.customer.username}"
+# Also register Batch so you can see them in the admin
+@admin.register(Batch)
+class BatchAdmin(admin.ModelAdmin):
+    list_display = ('id', 'product', 'quantity', 'selling_price', 'created_at')
