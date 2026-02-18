@@ -2,16 +2,18 @@ from rest_framework import generics, status
 from .models import Product, Category, Batch
 from inventory.serializers import ProductSerializer, CategorySerializer
 
-from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.db import transaction
 from django.db.models import Sum
+
+from accounts.permissions import IsAdmin, IsCashier
 
 
 # Create your views here.
 
 # This endpoint only allows POST requests to create a new item
 class ProductCreateView(generics.CreateAPIView):
+    permission_classes = [IsAdmin]
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
 
@@ -59,25 +61,32 @@ class ProductCreateView(generics.CreateAPIView):
 
 # This view handles the GET request to list everything in the database
 class ProductListView(generics.ListAPIView):
+    permission_classes = [IsCashier | IsAdmin]
+
     queryset = Product.objects.all()
     # This tells Django HOW to format the data
     serializer_class = ProductSerializer
 
 class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [ IsAdmin ]
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
 
 # This view handles both GET (list) and POST (create)
 class CategoryListCreateView(generics.ListCreateAPIView):
+    permission_classes = [IsCashier | IsAdmin]
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
 
 class CategoryDetailView(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [ IsAdmin ]
+
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
 
 
 class StockAlertView(generics.ListAPIView):
+    permission_classes = [IsCashier | IsAdmin]
     serializer_class = ProductSerializer
 
     def get_queryset(self):

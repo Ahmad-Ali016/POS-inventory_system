@@ -6,6 +6,9 @@ from rest_framework.views import APIView
 from django.contrib.auth import authenticate
 from rest_framework.response import Response
 
+from rest_framework.permissions import AllowAny
+from rest_framework.authtoken.models import Token
+
 
 # Create your views here.
 
@@ -14,6 +17,9 @@ class RegisterUserView(generics.CreateAPIView):
     serializer_class = UserSerializer
 
 class LoginView(APIView):
+    # This allows anyone to access this view without a token
+    permission_classes = [AllowAny]
+
     def post(self, request):
         # 1. Get credentials from the Postman request
         username = request.data.get('username')
@@ -23,14 +29,18 @@ class LoginView(APIView):
         user = authenticate(username=username, password=password)
 
         if user is not None:
-            # 3. Return a clean JSON success message
+            # 3. Get or Create a Token for the user
+            token, created = Token.objects.get_or_create(user=user)
+
+            # 4. Return the Token along with user info
             return Response({
                 "message": "Login successful!",
+                "token": token.key,  # The "key" they will use in Postman headers
                 "user": user.username,
                 "role": user.role
             }, status=status.HTTP_200_OK)
         else:
-            # 4. Return an error message if credentials fail
+            # 5. Return an error message if credentials fail
             return Response({
                 "error": "Invalid credentials"
             }, status=status.HTTP_401_UNAUTHORIZED)

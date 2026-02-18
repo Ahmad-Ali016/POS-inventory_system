@@ -4,6 +4,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 
 from accounts.models import User
+from accounts.permissions import IsCashier, IsAdmin
 from inventory.models import Product, Batch
 from .models import Customer, Sale
 from .serializers import CustomerRegisterSerializer, SaleReadSerializer
@@ -15,6 +16,8 @@ from django.db import transaction
 # Create your views here.
 
 class RegisterView(generics.CreateAPIView):
+    permission_classes = [IsAdmin]
+
     # Use the Customer model, NOT the authtoken User
     queryset = Customer.objects.all()
     permission_classes = [AllowAny]
@@ -22,6 +25,7 @@ class RegisterView(generics.CreateAPIView):
 
 
 class LoginView(APIView):
+
     def post(self, request):
         username = request.data.get('username')
         password = request.data.get('password')
@@ -47,11 +51,15 @@ class LoginView(APIView):
 
 
 class CustomerListView(generics.ListAPIView):
+    permission_classes = [IsCashier | IsAdmin]
+
     queryset = Customer.objects.all()
     serializer_class = CustomerRegisterSerializer
 
 
 class ProcessSaleView(APIView):
+    permission_classes = [IsCashier | IsAdmin]
+
     def post(self, request):
         # 1. Get IDs from the Postman request
         customer_id = request.data.get('customer_id')
@@ -133,5 +141,6 @@ class ProcessSaleView(APIView):
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 class SaleListView(generics.ListAPIView):
+    permission_classes = [IsCashier | IsAdmin]
     queryset = Sale.objects.all().order_by('-sale_date')  # Newest sales first
     serializer_class = SaleReadSerializer
